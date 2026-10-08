@@ -1,11 +1,22 @@
 import pandas as pd
 from typing import Optional, Callable
 import time
+import os
+import subprocess
 
 try:
     from crawl4weibo import WeiboClient
 except ImportError:
     WeiboClient = None
+
+
+def _try_install_playwright():
+    """尝试自动安装 Playwright 浏览器（仅本地有效）"""
+    try:
+        subprocess.run(["playwright", "install", "chromium"], check=False, timeout=120)
+        return True
+    except Exception:
+        return False
 
 
 def crawl_weibo(
@@ -15,18 +26,36 @@ def crawl_weibo(
     delay: float = 1.5,
     progress_callback: Optional[Callable[[float, str], None]] = None
 ) -> Optional[pd.DataFrame]:
-    """
-    爬取指定微博用户的公开内容（支持进度回调）
-    progress_callback(progress: float, message: str)
-    """
     if WeiboClient is None:
         raise ImportError("请先安装 crawl4weibo: pip install crawl4weibo")
 
-    client = WeiboClient()
+    if progress_callback:
+        progress_callback(0.02, "正在初始化微博客户端...")
+
+    try:
+        client = WeiboClient()
+    except Exception as e:
+        err_msg = str(e)
+        if "Executable doesn't exist" in err_msg or "playwright" in err_msg.lower():
+            # 尝试自动安装
+            if progress_callback:
+                progress_callback(0.05, "检测到缺少浏览器内核，正在尝试自动安装 Chromium...")
+            success = _try_install_playwright()
+            if success:
+                client = WeiboClient()
+            else:
+                raise RuntimeError(
+                    "Playwright 浏览器未安装。\n"
+                    "请在终端运行以下命令后重试：\n\n"
+                    "playwright install chromium\n\n"
+                    "如果是 Streamlit Cloud，请参考 README 中的 Cloud 部署说明。"
+                )
+        else:
+            raise e
+
     all_posts = []
 
     for page in range(1, max_pages + 1):
-        # 更新进度
         if progress_callback:
             progress = (page - 1) / max_pages
             progress_callback(progress, f"正在爬取第 {page}/{max_pages} 页...")
