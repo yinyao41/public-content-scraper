@@ -1,3 +1,16 @@
+import os
+import subprocess
+
+# Streamlit Cloud 专用：安装 Playwright 浏览器 + 系统依赖
+if os.path.exists("/home/appuser"):
+    try:
+        # 安装系统依赖（通过 packages.txt 已经处理大部分）
+        subprocess.run(["playwright", "install-deps"], check=False, timeout=60)
+        # 安装 Chromium
+        subprocess.run(["playwright", "install", "chromium"], check=False, timeout=180)
+    except Exception:
+        pass
+
 import streamlit as st
 import pandas as pd
 from modules.weibo_crawler import crawl_weibo
